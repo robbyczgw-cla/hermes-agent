@@ -33,6 +33,7 @@ import logging
 import os
 import queue
 import re
+import requests
 import shutil
 import subprocess
 import tempfile
@@ -129,7 +130,8 @@ DEFAULT_OUTPUT_DIR = _get_default_output_dir()
 # Per-provider input-character limits (from official provider docs).
 # A single global cap was wrong: OpenAI is 4096, xAI is 15k, MiniMax is 10k,
 # ElevenLabs is model-dependent (5k / 10k / 30k / 40k), Gemini caps at ~8k
-# input tokens.  Users can override any of these via
+# input tokens, and Deepgram Aura is best kept to short single utterances.
+# Users can override any of these via
 # ``tts.<provider>.max_text_length`` in config.yaml.
 # ---------------------------------------------------------------------------
 PROVIDER_MAX_TEXT_LENGTH: Dict[str, int] = {
@@ -138,6 +140,7 @@ PROVIDER_MAX_TEXT_LENGTH: Dict[str, int] = {
     "xai": 15000,         # https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
     "minimax": 10000,     # https://platform.minimax.io/docs/api-reference/speech-t2a-http (sync)
     "mistral": 4000,      # conservative; no published per-request cap
+    "deepgram": 2000,     # conservative default for Aura speech requests
     "gemini": 5000,       # Gemini TTS caps at ~8k input tokens / ~655s audio
     "elevenlabs": 10000,  # fallback when model-aware lookup can't resolve (multilingual_v2)
     "neutts": 2000,       # local model, quality falls off on long text
@@ -1232,6 +1235,8 @@ def check_tts_requirements() -> bool:
             return True
     except ImportError:
         pass
+    if os.getenv("DEEPGRAM_API_KEY"):
+        return True
     if _check_neutts_available():
         return True
     if _check_kittentts_available():

@@ -19,8 +19,11 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _clear_openai_env(monkeypatch):
+def _clear_audio_provider_env(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("VOICE_TOOLS_OPENAI_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
 
 
 class TestGetProvider:
@@ -65,6 +68,16 @@ class TestGetProvider:
         with patch("tools.transcription_tools._HAS_FASTER_WHISPER", True):
             from tools.transcription_tools import _get_provider
             assert _get_provider({}) == "local"
+
+    def test_explicit_deepgram_when_key_set(self, monkeypatch):
+        monkeypatch.setenv("DEEPGRAM_API_KEY", "dg-test")
+        from tools.transcription_tools import _get_provider
+        assert _get_provider({"provider": "deepgram"}) == "deepgram"
+
+    def test_explicit_deepgram_no_key_returns_none(self, monkeypatch):
+        monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+        from tools.transcription_tools import _get_provider
+        assert _get_provider({"provider": "deepgram"}) == "none"
 
     def test_disabled_config_returns_none(self):
         from tools.transcription_tools import _get_provider

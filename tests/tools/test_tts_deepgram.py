@@ -109,9 +109,10 @@ class TestTtsDispatcherDeepgram:
         mock_response.content = b"fake-audio"
         mock_response.status_code = 200
 
-        with patch("tools.tts_tool.requests.post", return_value=mock_response):
+        with patch("tools.tts_tool.requests.post", return_value=mock_response), \
+             patch("tools.tts_tool._load_tts_config", return_value={"provider": "deepgram"}):
             monkeypatch.setenv("HERMES_SESSION_PLATFORM", "")
-            result = text_to_speech_tool("Hello", config_override={"tts": {"provider": "deepgram"}})
+            result = text_to_speech_tool("Hello")
             import json
             data = json.loads(result)
             assert data["success"] is True
