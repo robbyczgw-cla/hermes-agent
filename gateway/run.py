@@ -17751,11 +17751,10 @@ class GatewayRunner:
                         except Exception as e:
                             logger.debug("Stream consumer wait before queued message failed: %s", e)
                     _previewed = bool(result.get("response_previewed"))
-                    _already_streamed = bool(
-                        (_sc and getattr(_sc, "final_response_sent", False))
-                        or _previewed
-                        or (_sc and getattr(_sc, "final_content_delivered", False))
+                    _content_delivered = bool(
+                        _sc and getattr(_sc, "final_content_delivered", False)
                     )
+                    _already_streamed = bool(_previewed or _content_delivered)
                     first_response = result.get("final_response", "")
                     if first_response and not _already_streamed:
                         try:
@@ -17940,7 +17939,7 @@ class GatewayRunner:
             # after streaming finished — when the response was transformed, always
             # send the final version so the appended content reaches the client.
             _transformed = bool(response.get("response_transformed"))
-            if not _is_empty_sentinel and not _transformed and (_streamed or _previewed or _content_delivered):
+            if not _is_empty_sentinel and not _transformed and (_previewed or _content_delivered):
                 logger.info(
                     "Suppressing normal final send for session %s: final delivery already confirmed (streamed=%s previewed=%s content_delivered=%s).",
                     session_key or "?",

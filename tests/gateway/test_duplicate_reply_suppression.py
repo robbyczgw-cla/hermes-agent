@@ -176,10 +176,11 @@ class TestOnlyFinalStreamDeliverySuppressesFinalSend:
     the fallback final send must still happen so Telegram users don't lose
     the real answer."""
 
-    def _make_mock_stream_consumer(self, already_sent=False, final_response_sent=False):
+    def _make_mock_stream_consumer(self, already_sent=False, final_response_sent=False, final_content_delivered=False):
         sc = SimpleNamespace(
             already_sent=already_sent,
             final_response_sent=final_response_sent,
+            final_content_delivered=final_content_delivered,
         )
         return sc
 
@@ -216,7 +217,7 @@ class TestOnlyFinalStreamDeliverySuppressesFinalSend:
 
     def test_already_sent_set_on_final_response_sent(self):
         """final_response_sent=True should suppress duplicate final sends."""
-        sc = self._make_mock_stream_consumer(already_sent=False, final_response_sent=True)
+        sc = self._make_mock_stream_consumer(final_response_sent=True, final_content_delivered=True)
         response = {"final_response": "text"}
 
         if sc and isinstance(response, dict) and not response.get("failed"):
@@ -224,10 +225,29 @@ class TestOnlyFinalStreamDeliverySuppressesFinalSend:
             _is_empty_sentinel = not _final or _final == "(empty)"
             _streamed = bool(sc and getattr(sc, "final_response_sent", False))
             _previewed = bool(response.get("response_previewed"))
-            if not _is_empty_sentinel and (_streamed or _previewed):
+            _content_delivered = bool(sc and getattr(sc, "final_content_delivered", False))
+            if not _is_empty_sentinel and (_previewed or _content_delivered):
                 response["already_sent"] = True
 
         assert response.get("already_sent") is True
+
+    def test_final_response_sent_without_content_confirmation_does_not_suppress(self):
+        """If the stream consumer only claims final_response_sent but did not
+        confirm final_content_delivered, fall back to the normal final send.
+        This is the Telegram cutoff failure mode: a partial/edit path can mark
+        streamed=True while the final visible content never landed."""
+        sc = self._make_mock_stream_consumer(final_response_sent=True, final_content_delivered=False)
+        response = {"final_response": "complete final text", "response_previewed": False}
+
+        if sc and isinstance(response, dict) and not response.get("failed"):
+            _final = response.get("final_response") or ""
+            _is_empty_sentinel = not _final or _final == "(empty)"
+            _previewed = bool(response.get("response_previewed"))
+            _content_delivered = bool(sc and getattr(sc, "final_content_delivered", False))
+            if not _is_empty_sentinel and (_previewed or _content_delivered):
+                response["already_sent"] = True
+
+        assert "already_sent" not in response
 
     def test_already_sent_not_set_on_failed_response(self):
         """Failed responses should never be suppressed — user needs to see
